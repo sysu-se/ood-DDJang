@@ -1,11 +1,9 @@
 <script>
-	import { userGrid } from '@sudoku/stores/grid';
 	import { cursor } from '@sudoku/stores/cursor';
 	import { notes } from '@sudoku/stores/notes';
 	import { candidates } from '@sudoku/stores/candidates';
-
-	// TODO: Improve keyboardDisabled
 	import { keyboardDisabled } from '@sudoku/stores/keyboard';
+	import { gameDomain } from '@sudoku/stores/gameDomain';
 
 	function handleKeyButton(num) {
 		if (!$keyboardDisabled) {
@@ -15,13 +13,13 @@
 				} else {
 					candidates.add($cursor, num);
 				}
-				userGrid.set($cursor, 0);
+				gameDomain.clear($cursor);
 			} else {
 				if ($candidates.hasOwnProperty($cursor.x + ',' + $cursor.y)) {
 					candidates.clear($cursor);
 				}
 
-				userGrid.set($cursor, num);
+				gameDomain.guess($cursor, num);
 			}
 		}
 	}
@@ -74,7 +72,7 @@
 	}
 </script>
 
-<svelte:window on:keydown={handleKey} /><!--on:beforeunload|preventDefault={e => e.returnValue = ''} />-->
+<svelte:window on:keydown={handleKey} />
 
 <div class="keyboard-grid">
 
