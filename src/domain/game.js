@@ -13,6 +13,16 @@ function createGame({ sudoku, history = [], redoHistory = [] }) {
   let explorationSnapshot = null;
   let explorationHistoryManager = null;
 
+  const failedPathGrids = new Set();
+
+  function gridKey(grid) {
+    return grid.map(row => row.join('')).join('|');
+  }
+
+  function recordFailedPath() {
+    failedPathGrids.add(gridKey(currentSudoku.getGrid()));
+  }
+
   const game = {
     guess(move) {
       validateMove(move);
@@ -132,6 +142,9 @@ function createGame({ sudoku, history = [], redoHistory = [] }) {
       if (currentSudoku.hasConflicts()) {
         return false;
       }
+      historyManager.push(explorationSnapshot);
+      historyManager.mergeFrom(explorationHistoryManager);
+      failedPathGrids.clear();
       explorationSnapshot = null;
       explorationHistoryManager = null;
       isExploring = false;
@@ -140,11 +153,20 @@ function createGame({ sudoku, history = [], redoHistory = [] }) {
 
     abandonExploration() {
       if (!isExploring) return false;
+      recordFailedPath();
       currentSudoku = explorationSnapshot;
       explorationSnapshot = null;
       explorationHistoryManager = null;
       isExploring = false;
       return true;
+    },
+
+    isFailedPath() {
+      return failedPathGrids.has(gridKey(currentSudoku.getGrid()));
+    },
+
+    getFailedPathCount() {
+      return failedPathGrids.size;
     },
 
     toJSON() {

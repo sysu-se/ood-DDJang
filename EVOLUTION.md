@@ -160,13 +160,15 @@ commitExploration() {
 ```javascript
 commitExploration() {
   // 探索成功：无冲突，保留探索历史
-  const history = explorationHistoryManager.getHistory();
-  history.forEach(entry => historyManager.push(entry.snapshot));
+  historyManager.push(explorationSnapshot);
+  historyManager.mergeFrom(explorationHistoryManager);
+  failedPathGrids.clear();
   // 清理探索状态...
 }
 
 abandonExploration() {
-  // 探索失败：恢复到快照，丢弃探索历史
+  // 探索失败：记录失败路径，恢复到快照，丢弃探索历史
+  recordFailedPath();
   currentSudoku = explorationSnapshot;
   // 清理探索状态...
 }
@@ -176,25 +178,78 @@ abandonExploration() {
 
 ## 5. History 结构在本次作业中是否发生了变化？
 
-**没有变化**。
+**结构未变，但新增了合并能力**。
 
 原有的线性 history 栈仍然适用于：
 - 正常模式的 undo/redo
 - 探索模式提交后的 undo/redo
 
+新增的 HistoryManager 方法：
+- `mergeFrom(otherManager)` — 将另一个 historyManager 的所有条目合并到当前主 history 中
+- `getEntries()` — 获取所有历史条目的克隆（用于合并时避免引用污染）
+- `appendEntries(entries)` — 追加条目到历史栈
+
 新增的探索历史栈：
 - 仅在探索模式期间使用
-- 提交时合并到主历史
+- 提交时通过 `mergeFrom` 合并到主历史
 - 放弃时丢弃
 
 ```
 正常模式:  [H1] → [H2] → [H3]
 探索模式:  [E1] → [E2]
             ↓ commit
-正常模式:  [H1] → [H2] → [H3] → [E1'] → [E2']
+正常模式:  [H1] → [H2] → [H3] → [Snapshot] → [E1'] → [E2']
             ↓ abandon
-恢复快照:  [H1] → [H2] → [H3]  (E1, E2 丢弃)
+恢复快照:  [H1] → [H2] → [H3]  (E1, E2 丢弃，失败路径被记忆)
 ```
+
+---
+
+### 探索失败路径记忆
+
+为了满足作业要求中"记忆：用户多路径探索到已经失败的探索路径的某一棋盘时，告知用户探索失败"，新增了失败路径记忆功能：
+
+```javascript
+// game.js
+const failedPathGrids = new Set();
+
+function gridKey(grid) {
+  return grid.map(row => row.join('')).join('|');
+}
+
+function recordFailedPath() {
+  failedPathGrids.add(gridKey(currentSudoku.getGrid()));
+}
+```
+
+当用户放弃探索时，当前棋盘状态（grid 快照）会被记录到 `failedPathGrids` 集合中。之后再次进入探索模式时，如果棋盘状态匹配某条失败路径，UI 会显示警告：
+
+```svelte
+{#if $gameDomain.isExploring && $gameDomain.isFailedPath}
+  <div class="failed-path-warning">
+    This path was previously explored and abandoned
+  </div>
+{/if}
+```
+
+---
+
+### 两层提示（加分项：区分"仅提示位置"和"直接填写答案"）
+
+为满足加分项要求，提示功能改为两层交互：
+
+1. **第一层（位置提示）**：点击 Hint 按钮，显示当前选中格子的候选数集合和解释信息，不直接填写答案
+2. **第二层（答案填写）**：再次点击 Hint 按钮，直接将正确答案填入
+
+```javascript
+// gameDomain.js
+getHintInfo(pos) {
+  // 返回候选数、答案、是否为推定数(naked single)、解释说明
+  return { row, col, candidates, answer, isNakedSingle, explanation };
+}
+```
+
+UI 层通过 `hintLevel` 状态变量跟踪当前提示阶段，切换光标位置时自动重置。
 
 ---
 
@@ -336,16 +391,18 @@ const state = writable({
 | HW1.1 | 拆分为多模块，添加验证和序列化 |
 | HW2 | 添加提示功能、探索模式（状态切换） |
 | HW2.1 | 统一数据源、建模 givens、优化同步效率 |
+| HW2.2 | 探索失败路径记忆、探索历史合并、两层提示 |
 
 ### 本次新增/修改
 
 - `solver.js` - 添加 `getInvalidCells`、`isValidPlacement`
 - `sudoku.js` - 添加 givens 掩码、`isGiven()`、`getInvalidCells()`、`isComplete()`
-- `game.js` - 添加 `getGivens()`、`isGiven()`、`getInvalidCells()`、`isComplete()`
-- `gameDomain.js` - 统一状态快照、移除 userGrid 直接暴露
+- `history.js` - 添加 `getEntries()`、`appendEntries()`、`mergeFrom()`
+- `game.js` - 添加 `getGivens()`、`isGiven()`、`getInvalidCells()`、`isComplete()`；探索失败路径记忆（`failedPathGrids`、`isFailedPath()`、`getFailedPathCount()`）；修复 `commitExploration()` 合并探索历史到主历史
+- `gameDomain.js` - 统一状态快照、添加 `isFailedPath`/`failedPathCount` 状态、添加 `getHintInfo()` 两层提示接口
 - `Board/index.svelte` - 只使用 gameDomain
 - `Keyboard.svelte` - 只调用 gameDomain 方法
-- `Actions.svelte` - 只使用 gameDomain
+- `Actions.svelte` - 失败路径警告 UI、两层 Hint 交互（候选提示 + 答案填写）
 - `Share.svelte` - 使用 gameDomain.grid
 
 ### 设计原则保持

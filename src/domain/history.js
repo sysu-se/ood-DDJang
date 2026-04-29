@@ -51,6 +51,27 @@ function createHistoryManager() {
       return deepClone(redoHistory);
     },
 
+    getEntries() {
+      return history.map(entry => ({
+        type: entry.type,
+        snapshot: entry.snapshot.clone()
+      }));
+    },
+
+    appendEntries(entries) {
+      for (const entry of entries) {
+        history.push({
+          type: entry.type || 'exploration',
+          snapshot: entry.snapshot.clone()
+        });
+      }
+      redoHistory.length = 0;
+    },
+
+    mergeFrom(otherManager) {
+      this.appendEntries(otherManager.getEntries());
+    },
+
     loadFromJSON(historyData, redoHistoryData) {
       history.length = 0;
       redoHistory.length = 0;
