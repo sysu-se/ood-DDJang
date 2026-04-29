@@ -6,6 +6,9 @@ function createSudokuFromJSON(json) {
   if (!json || typeof json !== 'object' || !Array.isArray(json.grid)) {
     throw new Error('Invalid JSON: missing or invalid grid property');
   }
+  if (Array.isArray(json.givens)) {
+    return createSudoku(json.grid, json.givens);
+  }
   return createSudoku(json.grid);
 }
 

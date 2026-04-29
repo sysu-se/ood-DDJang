@@ -8,10 +8,10 @@ function deepClone(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
-function createSudoku(input) {
+function createSudoku(input, givenOverride) {
   validateGrid(input);
   const grid = deepClone(input);
-  const givens = grid.map(row => row.map(cell => cell !== 0));
+  const givens = givenOverride ? deepClone(givenOverride) : grid.map(row => row.map(cell => cell !== 0));
 
   const sudoku = {
     getGrid() {
@@ -43,9 +43,7 @@ function createSudoku(input) {
     },
 
     clone() {
-      const cloned = createSudoku(grid);
-      cloned.givens = deepClone(givens);
-      return cloned;
+      return createSudoku(grid, givens);
     },
 
     toJSON() {
